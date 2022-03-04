@@ -24,7 +24,7 @@ It is rough and needs a lot of testing but functional.
 • There's a few areas in the Micronet class that need to be made thread safe (data structs)  
 • Tons of fixme's.  
 
-## Needed libraries:
+## Needed libraries
 For CC1101  
 	-SPI  
 	
@@ -43,6 +43,9 @@ Compile, upload and hopefully you'll start seeing packets from your network. If 
 ## Wiring
 Most pins on the esp32 can be used but I'd stay away from 0, 1, 3, and 6 - 12 because they can interfere with the boot process. This is how I've wired my project.  
 ![schematic](https://github.com/mnsnoop/esp32Micronet/blob/main/misc/esp32micronetbridge.png)
+
+## A word on CC1101 modules
+There's a few different CC1101 modules available and the quality of the boards varies greatly. I had to buy three different modules before finding one that output a decent signal. If you’re having range issues try testing your module with a rtl-sdr dongle to see if it’s putting out a strong clean signal. If you're buying a new module I'd suggest one of the red board ones with a 1x8 pin header.
 
 ## NMEA2000 Message information
 	esp32Micronet will receive the following messages:
