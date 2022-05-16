@@ -1,3 +1,4 @@
+#include "BoardConfig.h"
 #include "micronet.h"
 
 void IRAM_ATTR MicronetTimerCallback(TimerHandle_t xTimer);
@@ -16,7 +17,7 @@ Micronet::Micronet()
 	mnIdMyDevice.bId[3] = MN_DEVICE_ID3;
 
 	eMNStatus = MNS_Force_Node;
-//	eMNStatus = MNS_NetworkChoice;
+	eMNStatus = MNS_NetworkChoice;
 
 	for (int i = 0; i < 10; i++)
 	{
@@ -35,8 +36,8 @@ Micronet::Micronet()
 
 	iMNNodes = 0;
 
-	memset(&sDataArrayIn, 0, sizeof(sDataArrayIn));
-	memset(&sDataArrayOut, 0, sizeof(sDataArrayOut));
+//	memset(&sDataArrayIn, 0, sizeof(sDataArrayIn));
+//	memset(&sDataArrayOut, 0, sizeof(sDataArrayOut));
 	sDataArrayOut.bNodeInfoType = 0x08; //we're a 'type 8' device.
 	sDataArrayOut.bNodeInfoVMajor = 0x01; //version 1
 	sDataArrayOut.bNodeInfoVMinor = 0x00; //.0
@@ -61,7 +62,7 @@ Micronet::~Micronet()
 
 void Micronet::Start()
 {
-	xTimerStart(tiMicronet, 0);	
+	xTimerStart(tiMicronet, 0);
 }
 
 void Micronet::IncomingPacketHandlerCB(void *m)
@@ -87,9 +88,9 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 	_cMNId	mnIdPacketNetwork{p->bMessage[0], p->bMessage[1], p->bMessage[2], p->bMessage[3]},
 		 	mnIdPacketDevice{p->bMessage[4], p->bMessage[5], p->bMessage[6], p->bMessage[7]};
 
-	int iPacketTime = 0,
-		iPredictedWindow = 0;
-		 	
+//	int iPacketTime = 0,
+	int iPredictedWindow = 0;
+
 	if (GetCRC(p->bMessage, 11) != p->bMessage[11])
 	{
 		print(LL_ERROR, "Packet failed header CRC check. (CRC given %x expected %x)\n", p->bMessage[11], GetCRC(p->bMessage, 11));
@@ -108,7 +109,7 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 		eMNStatus = MNS_NetworkChoice_N1;
 	}
 
-	if ((eMNStatus == MNS_NetworkChoice_N1 || eMNStatus == MNS_Force_Node_Listening || 
+	if ((eMNStatus == MNS_NetworkChoice_N1 || eMNStatus == MNS_Force_Node_Listening ||
 		eMNStatus == MNS_NetworkChoice_Node || eMNStatus == MNS_Force_Node_Connected) && p->bMessage[8] == 0x01)
 	{
 		if (GetCRC(p->bMessage + 14, p->bSize - 15) != p->bMessage[p->bSize - 1])
@@ -125,18 +126,18 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 			sMNSync[iNodes].mnIdDevice.bId[2] = p->bMessage[i + 2];
 			sMNSync[iNodes].mnIdDevice.bId[3] = p->bMessage[i + 3];
 			sMNSync[iNodes].bWindowSize = p->bMessage[i + 4];
-			iNodes++;	
+			iNodes++;
 		}
-		
+
 		iMNNodes = iNodes;
 		tLAnnounce = p->tTime;
 		iSyncPacketOffset = p->tTime - (uint64_t)((uint32_t)(p->tTime / 1000000) * 1000000);
 
 //		for (int i = 0; i < iMNNodes; i++)
-//			print(LL_INFO, "%.2X:%.2X:%.2X:%.2X - %.2X\n", sMNSync[i].nmIdDevice.bId[0], sMNSync[i].nmIdDevice.bId[1], sMNSync[i].nmIdDevice.bId[2], sMNSync[i].nmIdDevice.bId[3], sMNSync[i].bWindowSize);	
+//			print(LL_INFO, "%.2X:%.2X:%.2X:%.2X - %.2X\n", sMNSync[i].nmIdDevice.bId[0], sMNSync[i].nmIdDevice.bId[1], sMNSync[i].nmIdDevice.bId[2], sMNSync[i].nmIdDevice.bId[3], sMNSync[i].bWindowSize);
 	}
 
-	iPacketTime = p->tTime - tLAnnounce;
+//	iPacketTime = p->tTime - tLAnnounce;
 	iPredictedWindow = GetPacketWindow(mnIdPacketDevice, p->bMessage[8]);
 
 	if (p->bMessage[8] == 0x01)
@@ -150,32 +151,31 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 					eMNStatus = MNS_NetworkChoice_N1;
 				else if (eMNStatus == MNS_Force_Node_Connected)
 					eMNStatus = MNS_Force_Node_Listening;
-	
+
 				print(LL_INFO, "Disconnected from the Micronet.\n");
-			}			
+			}
 		}
-		
+
 		if (eMNStatus == MNS_NetworkChoice_N1 || eMNStatus == MNS_Force_Node_Listening)
 		{
 			int iPlace = FindMNDeviceInSyncList(mnIdMyDevice);
-	
+
 			if (iPlace != -1)
 			{ //we're already on the list. Connected.
 				if (eMNStatus == MNS_NetworkChoice_N1)
 					eMNStatus = MNS_NetworkChoice_Node;
 				else if (eMNStatus == MNS_Force_Node_Listening)
 					eMNStatus = MNS_Force_Node_Connected;
-	
+
 				print(LL_INFO, "Connected to the Micronet as a node.\n");
 			}
 			else
 			{
 				if (!random(0, 6))
 				{ //try to join the network. the random chance mimics MN devices' own anti-collision mechinism.
-					print(LL_INFO, "Trying to connect to the Micronet as a node.\n");
 					_uMNPacket pPacket;
 					CreatePacket0x03(&pPacket);
-					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x03));				
+					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x03));
 				}
 			}
 		}
@@ -278,56 +278,56 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 					{
 						uint16_t iSpeed = ((unsigned char)(p->bMessage[iPlace + 3]) << 8 |
 											(unsigned char)(p->bMessage[iPlace + 4]));
-											
+
 						sDataArrayIn.iSpeed = iSpeed;
-						sDataArrayIn.tlSpeedUpdate = p->tTime; 
+						sDataArrayIn.tlSpeedUpdate = p->tTime;
 					}
 					else if (p->bMessage[iPlace + 1] == 0x03)
 					{
 						sDataArrayIn.iWaterTemp = p->bMessage[iPlace + 3];
-						sDataArrayIn.tlWaterTempUpdate = p->tTime; 
+						sDataArrayIn.tlWaterTempUpdate = p->tTime;
 					}
 					else if (p->bMessage[iPlace + 1] == 0x04)
 					{
 						uint16_t iDepth = ((unsigned char)(p->bMessage[iPlace + 3]) << 8 |
 											(unsigned char)(p->bMessage[iPlace + 4]));
-											
+
 						sDataArrayIn.iDepth = iDepth;
-						sDataArrayIn.tlDepthUpdate = p->tTime; 
+						sDataArrayIn.tlDepthUpdate = p->tTime;
 					}
 					else if (p->bMessage[iPlace + 1] == 0x05)
 					{
 						uint16_t iAppWindSpeed = ((unsigned char)(p->bMessage[iPlace + 3]) << 8 |
 											(unsigned char)(p->bMessage[iPlace + 4]));
-											
+
 						sDataArrayIn.iAppWindSpeed = iAppWindSpeed;
-						sDataArrayIn.tlAppWindSpeedUpdate = p->tTime; 
+						sDataArrayIn.tlAppWindSpeedUpdate = p->tTime;
 					}
 					else if (p->bMessage[iPlace + 1] == 0x06)
 					{
 						uint16_t iAppWindDir = ((unsigned char)(p->bMessage[iPlace + 3]) << 8 |
 											(unsigned char)(p->bMessage[iPlace + 4]));
-											
+
 						sDataArrayIn.iAppWindDir = iAppWindDir;
-						sDataArrayIn.tlSpeedUpdate = p->tTime; 
+						sDataArrayIn.tlSpeedUpdate = p->tTime;
 					}
 					else if (p->bMessage[iPlace + 1] == 0x07)
 					{
 						uint16_t iHeading = ((unsigned char)(p->bMessage[iPlace + 3]) << 8 |
 											(unsigned char)(p->bMessage[iPlace + 4]));
-											
+
 						sDataArrayIn.iHeading = iHeading;
-						sDataArrayIn.tlHeadingUpdate = p->tTime; 
+						sDataArrayIn.tlHeadingUpdate = p->tTime;
 					}
 					else if (p->bMessage[iPlace + 1] == 0x1B)
 					{
 						uint16_t iVolts = ((unsigned char)(p->bMessage[iPlace + 3]) << 8 |
 											(unsigned char)(p->bMessage[iPlace + 4]));
-											
+
 						sDataArrayIn.iVolts = iVolts;
-						sDataArrayIn.tlVoltsUpdate = p->tTime; 
+						sDataArrayIn.tlVoltsUpdate = p->tTime;
 					}
-					
+
 					iPlace += iDataLength;
 				}
 			}
@@ -345,7 +345,7 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 				Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x07));
 
 				tCommandBlock = tLAnnounce + 1500000; //block sending commands for the next round incase this command needs repeated.
-				
+
 				if (p->bMessage[14] == 0xFC && p->bMessage[15] == 0x7F)
 				{ //request for node info
 					sDataArrayOut.bSendNodeInfo = true;
@@ -360,7 +360,7 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 						eMNStatus = MNS_Force_Node; //MNS_NetworkChoice_N1;
 					else if (eMNStatus == MNS_Force_Node_Connected)
 						eMNStatus = MNS_Force_Node;
-		
+
 					print(LL_INFO, "Remote device commanded network shutdown.\n");
 				}
 			}
@@ -373,7 +373,7 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 			{
 				_uMNPacket pPacket;
 				CreatePacket0x0B(&pPacket);
-				Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x0B));			
+				Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x0B));
 			}
 			break;
 		}
@@ -408,13 +408,27 @@ void Micronet::MicronetWorker()
 	uint32_t iCurrentSecond = iCurrentTick / 1000000;
 	uint32_t iCurrentUS = iCurrentTick - (uint64_t)(iCurrentSecond * 1000000); //0 - 999,999
 	int iWorkerTickTime = iSyncPacketOffset + 500000; //we tick 500ms before/after sync packet.
-	if (iWorkerTickTime >= 1000000)
+	if (iWorkerTickTime > 1000000)
 		iWorkerTickTime -= 1000000;
-		
+
 	if (abs((int)(iCurrentUS - iWorkerTickTime)) < 50000)
 	{
 		switch (eMNStatus)
 		{
+			case MNS_TestMode1: //special test mode
+			{
+				print(LL_INFO, "Test mode 1.\n");
+
+				eMNStatus = MNS_TestMode2;
+			}
+			break;
+			case MNS_TestMode2: //special test mode
+				print(LL_INFO, "Test mode 2.\n");
+				eMNStatus = MNS_TestMode3;
+			break;
+			case MNS_TestMode3: //special test mode
+				//print(LL_INFO, "Test mode 3.\n");
+			break;
 			case MNS_NetworkChoice: //start listening for a network.
 				CCRadio.Listen();
 				print(LL_INFO, "Network choice mode: Listening for a network.\n");
@@ -475,6 +489,8 @@ void Micronet::MicronetWorker()
 				eMNStatus = MNS_Force_Node_Listening;
 			}
 			break;
+			default:
+			break;
 		}
 
 		if (eMNStatus > MNS_Connected)
@@ -485,12 +501,12 @@ void Micronet::MicronetWorker()
 					eMNStatus = MNS_NetworkChoice_N1;
 				else if (eMNStatus == MNS_Force_Node_Connected)
 					eMNStatus = MNS_Force_Node_Listening;
-	
-				print(LL_INFO, "Disconnected from the Micronet.\n");			
+
+				print(LL_INFO, "Disconnected from the Micronet.\n");
 			}
 
 			int iPlace = FindMNDeviceInSyncList(mnIdMyDevice);
-			
+
 			_uMNPacket pPacket;
 			CreatePacket0x02(&pPacket);
 			if (pPacket.sHeader.bLength > 14)
@@ -498,7 +514,7 @@ void Micronet::MicronetWorker()
 				if (sMNSync[iPlace].bWindowSize < pPacket.sHeader.bLength)
 				{ //we have to increase our window before sending this data.
 					print(LL_INFO, "Adjusting our window size from %x to %x.\n", sMNSync[iPlace].bWindowSize, pPacket.sHeader.bLength);
-										
+
 					int iNewSize = pPacket.sHeader.bLength;
 					CreatePacket0x05(&pPacket, iNewSize);
 					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x05));
@@ -509,9 +525,9 @@ void Micronet::MicronetWorker()
 			else if (sMNSync[iPlace].bWindowSize > 0)
 			{ //we have a window but no data to send so we mute our window.
 				print(LL_INFO, "Adjusting our window size from %x to %x.\n", sMNSync[iPlace].bWindowSize, 0);
-									
+
 				CreatePacket0x05(&pPacket, 0);
-				Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x05));				
+				Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x05));
 			}
 
 		}
@@ -525,7 +541,7 @@ void Micronet::MicronetWorker()
 				}
 				catch(...)
 				{
-					print(LL_ERROR, "Execption while calling timer handlers.\n");	
+					print(LL_ERROR, "Execption while calling timer handlers.\n");
 				}
 			}
 	}
@@ -584,7 +600,7 @@ void Micronet::Send(_uMNPacket pPacket, uint64_t tSendTime, int iPreambleLength)
 	if (tCommandBlock > tSendTime && (pPacket.sHeader.bPacketType == 0x03 || pPacket.sHeader.bPacketType == 0x04 || pPacket.sHeader.bPacketType == 0x05 || pPacket.sHeader.bPacketType == 0x06 || pPacket.sHeader.bPacketType == 0x08 || pPacket.sHeader.bPacketType == 0x0A))
 	{
 		print(LL_INFO, "Command window expected to be occupied this round, dropping our own command.\n");
-		return;	
+		return;
 	}
 
 	//fixme. CC1101's send latancy is 8 bits we should account for it.
@@ -597,7 +613,6 @@ void Micronet::Send(_uMNPacket pPacket, uint64_t tSendTime, int iPreambleLength)
 		return;
 	}
 
-	print(LL_DEBUG, "Scheduling to send 0x%x packet at %d.\n", pPacket.sHeader.bPacketType, (uint32_t)tSendTime);
 	CCRadio.Send(pPacket.bRaw, pPacket.sHeader.bLength + 2, tSendTime, iPreambleLength, &SentPacketCallback, (void *)this);
 }
 
@@ -633,7 +648,7 @@ int Micronet::GetPacketWindow(_cMNId mnDevice, byte bPacketType, bool bFuture)
 	}
 	else if (bPacketType == 0x02)
 	{ //first round packets.
-		iPredictedWindow += 200; 
+		iPredictedWindow += 200;
 		bool bFound = false;
 		for (int i = 0; i < iMNNodes; i++)
 		{
@@ -651,7 +666,7 @@ int Micronet::GetPacketWindow(_cMNId mnDevice, byte bPacketType, bool bFuture)
 			return -1;
 	}
 	else if (bPacketType == 0x03 || bPacketType == 0x04 || bPacketType == 0x05 || bPacketType == 0x06 || bPacketType == 0x08 || bPacketType == 0x0A)
-	{ //packets that share the command slot. 
+	{ //packets that share the command slot.
 		iPredictedWindow += 7250;
 		for (int i = 0; i < iMNNodes; i++)
 			if (sMNSync[i].bWindowSize != 0)
@@ -667,7 +682,7 @@ int Micronet::GetPacketWindow(_cMNId mnDevice, byte bPacketType, bool bFuture)
 		for (int i = iMNNodes - 1; i >= 0; i--)
 		{
 			iPredictedWindow += 5400;
-			
+
 			if (sMNSync[i].mnIdDevice == mnDevice)
 				break;
 		}
@@ -709,9 +724,9 @@ void Micronet::CreatePacket0x01(_uMNPacket *p)
 {
 	if (!p)
 		return;
-	
+
 	int iLength = 3 + (5 * iMNNodes);
-	
+
 	sMNSync[0].bWindowSize = iLength;
 
 	for (int i = 0; i < iMNNodes; i++)
@@ -733,7 +748,7 @@ void Micronet::CreatePacket0x01(_uMNPacket *p)
 	p->sHeader.bUnk1 = 0x09;
 	p->sHeader.bSignalQuality = 0; //fixme. put rssi here
 	p->sHeader.bChecksum = GetCRC(p->bRaw, 11);
-	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;	
+	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;
 }
 
 void Micronet::CreatePacket0x02(_uMNPacket *p)
@@ -748,7 +763,7 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
   bytes[1] = (n >> 16) & 0xFF;
   bytes[2] = (n >> 8) & 0xFF;
   bytes[3] = n & 0xFF;*/
-  
+
 	if (tCurrentTick - sDataArrayOut.tlSpeedUpdate < 1000000)
 	{
 		p->sHeader.bData[iLength + 0] = 0x04;
@@ -766,14 +781,14 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 		p->sHeader.bData[iLength + 0] = 0x0A;
 		p->sHeader.bData[iLength + 1] = 0x02;
 		p->sHeader.bData[iLength + 2] = 0x09;
-		p->sHeader.bData[iLength + 3] = (sDataArrayOut.iTrip >> 24) & 0xFF; 
-		p->sHeader.bData[iLength + 4] = (sDataArrayOut.iTrip >> 16) & 0xFF; 
-		p->sHeader.bData[iLength + 5] = (sDataArrayOut.iTrip >> 8) & 0xFF; 
-		p->sHeader.bData[iLength + 6] = (sDataArrayOut.iTrip >> 0) & 0xFF; 
+		p->sHeader.bData[iLength + 3] = (sDataArrayOut.iTrip >> 24) & 0xFF;
+		p->sHeader.bData[iLength + 4] = (sDataArrayOut.iTrip >> 16) & 0xFF;
+		p->sHeader.bData[iLength + 5] = (sDataArrayOut.iTrip >> 8) & 0xFF;
+		p->sHeader.bData[iLength + 6] = (sDataArrayOut.iTrip >> 0) & 0xFF;
 		p->sHeader.bData[iLength + 7] = (sDataArrayOut.iLog >> 24) & 0xFF;
-		p->sHeader.bData[iLength + 8] = (sDataArrayOut.iLog >> 16) & 0xFF; 
-		p->sHeader.bData[iLength + 9] = (sDataArrayOut.iLog >> 8) & 0xFF; 
-		p->sHeader.bData[iLength + 10] = (sDataArrayOut.iLog >> 0) & 0xFF; 
+		p->sHeader.bData[iLength + 8] = (sDataArrayOut.iLog >> 16) & 0xFF;
+		p->sHeader.bData[iLength + 9] = (sDataArrayOut.iLog >> 8) & 0xFF;
+		p->sHeader.bData[iLength + 10] = (sDataArrayOut.iLog >> 0) & 0xFF;
 		p->sHeader.bData[iLength + 11] = GetCRC(p->sHeader.bData + iLength, 11);
 
 		iLength += 12;
@@ -801,7 +816,7 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 
 		iLength += 6;
 	}
-	
+
 	if (tCurrentTick - sDataArrayOut.tlAppWindSpeedUpdate < 1000000)
 	{
 		p->sHeader.bData[iLength + 0] = 0x04;
@@ -825,7 +840,7 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 
 		iLength += 6;
 	}
-	
+
 	if (tCurrentTick - sDataArrayOut.tlHeadingUpdate < 1000000)
 	{
 		p->sHeader.bData[iLength + 0] = 0x04;
@@ -851,7 +866,7 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 
 		iLength += 8;
 	}
-	
+
 	if (tCurrentTick - sDataArrayOut.tlLatLongUpdate < 1000000)
 	{
 		p->sHeader.bData[iLength + 0] = 0x09;
@@ -868,7 +883,7 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 
 		iLength += 11;
 	}
-	
+
 	if (tCurrentTick - sDataArrayOut.tlBTWUpdate < 1000000)
 	{
 		char cBuff[4];
@@ -881,7 +896,7 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 		else
 		{
 			int iOffset = sDataArrayOut.iWPNameScrollPos;
-			
+
 			for (int i = 0; i < 4; i++)
 			{
 				if (sDataArrayOut.cWPName[iOffset + i] == '\0')
@@ -891,13 +906,13 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 				}
 				else
 					cBuff[i] = sDataArrayOut.cWPName[iOffset + i];
-	
+
 			}
-	
+
 			sDataArrayOut.iWPNameScrollPos++;
 			if (sDataArrayOut.iWPNameScrollPos > 14 || sDataArrayOut.iWPNameScrollPos > iLen)
 				sDataArrayOut.iWPNameScrollPos = 0;
-		}				
+		}
 
 		p->sHeader.bData[iLength + 0] = 0x0A;
 		p->sHeader.bData[iLength + 1] = 0x0A;
@@ -999,25 +1014,12 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 		p->sHeader.bData[iLength + 2] = sDataArrayOut.bNodeInfoType; //type, 0=display (guess), 1=hull, 2=wind, 3=nmea, 4=mast , 5=mob, 6=sdpod, 7=type7, 8=type8,
 		p->sHeader.bData[iLength + 3] = sDataArrayOut.bNodeInfoVMinor; //minor version
 		p->sHeader.bData[iLength + 4] = sDataArrayOut.bNodeInfoVMajor; //major version
-		p->sHeader.bData[iLength + 5] = 0x33; //battery/sun. 0x01 = 1 bar battery, 0x02 = 2 bar battery, 0x03 = 3 bar battery, 0x10 = 1 bar sun, 0x20 = 2 bar sun, 0x30 = 3 bar sun, 
+		p->sHeader.bData[iLength + 5] = 0x33; //battery/sun. 0x01 = 1 bar battery, 0x02 = 2 bar battery, 0x03 = 3 bar battery, 0x10 = 1 bar sun, 0x20 = 2 bar sun, 0x30 = 3 bar sun,
 		p->sHeader.bData[iLength + 6] = 0x08;
 		p->sHeader.bData[iLength + 7] = GetCRC(p->sHeader.bData + iLength, 7); //0x64;
 
 		iLength += 8;
 	}
-
-/*		p->sHeader.bData[iLength + 0] = 0x06;
-		p->sHeader.bData[iLength + 1] = 0xFD;
-		p->sHeader.bData[iLength + 2] = 0x00; //unk
-		p->sHeader.bData[iLength + 3] = 0x01; //minutes
-		p->sHeader.bData[iLength + 4] = 0x00; //seconds
-		p->sHeader.bData[iLength + 5] = 0x00;
-		p->sHeader.bData[iLength + 6] = 0x00; //0x00 = stop, 0x01 = run
-		p->sHeader.bData[iLength + 7] = GetCRC(p->sHeader.bData + iLength, 7); //0x64;
-
-		iLength += 8;
-*/
-
 
 	p->sHeader.mnIdNetwork = mnIdMyNetwork;
 	p->sHeader.mnIdDevice = mnIdMyDevice;
@@ -1025,16 +1027,16 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 	p->sHeader.bUnk1 = 0x09;
 	p->sHeader.bSignalQuality = 0; //fixme. put rssi here
 	p->sHeader.bChecksum = GetCRC(p->bRaw, 11);
-	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;	
+	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;
 }
 
 void Micronet::CreatePacket0x03(_uMNPacket *p)
 {
 	if (!p)
 		return;
-		
+
 	int iLength = 3;
-	
+
 	p->sHeader.bData[0] = 0;
 	p->sHeader.bData[1] = 0;
 	p->sHeader.bData[2] = GetCRC(p->sHeader.bData, iLength - 1);
@@ -1045,32 +1047,32 @@ void Micronet::CreatePacket0x03(_uMNPacket *p)
 	p->sHeader.bUnk1 = 0x09;
 	p->sHeader.bSignalQuality = 0; //fixme. put rssi here
 	p->sHeader.bChecksum = GetCRC(p->bRaw, 11);
-	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;	
+	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;
 }
 
 void Micronet::CreatePacket0x05(_uMNPacket *p, int iNewWindowSize)
 {
 	if (!p)
 		return;
-		
+
 	int iLength = 2;
 	p->sHeader.bData[0] = iNewWindowSize;
 	p->sHeader.bData[1] = GetCRC(p->sHeader.bData, iLength - 1);
-	
+
 	p->sHeader.mnIdNetwork = mnIdMyNetwork;
 	p->sHeader.mnIdDevice = mnIdMyDevice;
 	p->sHeader.bPacketType = 0x05;
 	p->sHeader.bUnk1 = 0x09;
 	p->sHeader.bSignalQuality = 0; //fixme. put rssi here
 	p->sHeader.bChecksum = GetCRC(p->bRaw, 11);
-	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;	
+	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;
 }
 
 void Micronet::CreatePacket0x07(_uMNPacket *p)
 {
 	if (!p)
 		return;
-		
+
 	int iLength = 0;
 
 	p->sHeader.mnIdNetwork = mnIdMyNetwork;
@@ -1079,26 +1081,26 @@ void Micronet::CreatePacket0x07(_uMNPacket *p)
 	p->sHeader.bUnk1 = 0x09;
 	p->sHeader.bSignalQuality = 0; //fixme. put rssi here
 	p->sHeader.bChecksum = GetCRC(p->bRaw, 11);
-	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;	
+	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;
 }
 
 void Micronet::CreatePacket0x0B(_uMNPacket *p)
 {
 	if (!p)
 		return;
-		
+
 	int iLength = 2;
-	
+
 	p->sHeader.bData[0] = 0;
 	p->sHeader.bData[0] = GetCRC(p->sHeader.bData, iLength - 1);
-	
+
 	p->sHeader.mnIdNetwork = mnIdMyNetwork;
 	p->sHeader.mnIdDevice = mnIdMyDevice;
 	p->sHeader.bPacketType = 0x0B;
 	p->sHeader.bUnk1 = 0x09;
 	p->sHeader.bSignalQuality = 0; //fixme. put rssi here
 	p->sHeader.bChecksum = GetCRC(p->bRaw, 11);
-	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;	
+	p->sHeader.bLengthChecksum = p->sHeader.bLength = iLength + 12;
 }
 
 void Micronet::SetSpeed(float fSpeed)
@@ -1155,16 +1157,16 @@ void Micronet::SetSOGCOG(float fSOG, float fCOG)
 void Micronet::SetLatLong(float fLat, float fLong)
 {
 	sDataArrayOut.tlLatLongUpdate = esp_timer_get_time();
-	
+
 	sDataArrayOut.iNESW = 0;
 	if (fLat > 0)
 		sDataArrayOut.iNESW = 0x01;
-	if (fLong > 0) 
+	if (fLong > 0)
 		sDataArrayOut.iNESW += 0x02;
 
 	fLat = abs(fLat);
 	fLong = abs(fLong);
-	
+
 	sDataArrayOut.iLatDegree = (uint8_t)fLat;
 	sDataArrayOut.iLatMinute = (uint16_t)((fLat - sDataArrayOut.iLatDegree) * 60.0f * 1000.0f);
 	sDataArrayOut.iLongDegree = (uint8_t)fLong;
@@ -1216,7 +1218,7 @@ void Micronet::SetDate(uint8_t iDay, uint8_t iMonth, uint8_t iYear)
 void Micronet::SetVMG_WP(float fSpeed)
 {
 	sDataArrayOut.tlVMG_WPUpdate = esp_timer_get_time();
-	
+
 	sDataArrayOut.iVMG_WP = (uint16_t)(fSpeed * 100.0f);
 }
 

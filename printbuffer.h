@@ -17,23 +17,13 @@ enum _eLogLevel
 	LL_VERBOSE	
 };
 
-static const char *_cLogLevel[] =
-{
-	"   ",
-	"ERR",
-	"WAR",
-	"INF",
-	"DBG",
-	"VRB"
-};
-
 /*
 * NOTE! print() is not ISR safe! Printing from within an ISR will lead to stablity problems. Useful in debugging but don't leave in production.
 */
 
 void PrintInitialize();
-void print(_eLogLevel ell, char *format, ...); //prints with a timestamp.
-void printnts(_eLogLevel ell, char *format, ...); //prints without the timestamp.
+void print(_eLogLevel ell, const char *format, ...); //prints with a timestamp.
+void printnts(_eLogLevel ell, const char *format, ...); //prints without the timestamp.
 void fastprint(_eLogLevel ell, const char *c, int size); //prints without the timestamp or formatting. Mostly for ISRs.
 void tfPrint(void *p);
 void SetLogLevel(_eLogLevel ell);

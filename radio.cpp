@@ -1,3 +1,4 @@
+#include "BoardConfig.h"
 #include "radio.h"
 
 Radio *rRadio = NULL;
@@ -11,7 +12,7 @@ void IRAM_ATTR OutgoingTimerCallback()
 	pog.iPreambleBytes = 0;
 	pog.cbCallback = NULL;
 	pog.vArg = NULL;
-	
+
 	xQueueSendToBackFromISR(rRadio->qhOutgoingPacket, (const void *)&pog, NULL);
 	//fixme: potential issue. if this message fails to send with a full q then the timer will never get reset and send q never processed.
 }
@@ -20,12 +21,12 @@ void IRAM_ATTR ISRCalibration()
 {//This creates an even data signal (0x55 0b01010101) for calibrating.
 	if (rRadio->bCalFlipFlop)
 	{
-		digitalWrite(PIN_IO, 1);
+		digitalWrite(PIN_IO, 0);
 		rRadio->bCalFlipFlop = false;
 	}
 	else
 	{
-		digitalWrite(PIN_IO, 0);
+		digitalWrite(PIN_IO, 1);
 		rRadio->bCalFlipFlop = true;
 	}
 }
@@ -40,12 +41,12 @@ void IRAM_ATTR ISRDataOut()
 		{
 			case OS_START_PADDING_BYTE:
 				rRadio->eOutputState = OS_PREAMBLE;
-			break;	
+			break;
 			case OS_PREAMBLE:
 				rRadio->iPreambleTimeout--;
 				if (rRadio->iPreambleTimeout == 1)
 					rRadio->eOutputState = OS_SYNCWORD;
-			break;	
+			break;
 			case OS_SYNCWORD:
 				rRadio->tSent = esp_timer_get_time(); //log start of packet for timing purposes.
 				rRadio->eOutputState = OS_DATA;
@@ -63,15 +64,15 @@ void IRAM_ATTR ISRDataOut()
 
 		rRadio->iBitPos = 7;
 	}
-	
+	b = 0;
 	switch (rRadio->eOutputState)
 	{
 		case OS_START_PADDING_BYTE:
 			b = 0;
-		break;	
+		break;
 		case OS_PREAMBLE:
 			b = MN_PREAMBLE;
-		break;	
+		break;
 		case OS_SYNCWORD:
 			b = MN_SYNCWORD;
 		break;
@@ -202,15 +203,15 @@ Radio::Radio()
 	rRadio = this;
 
 	thSenderBlocking = NULL;
-	
+
 	qhProgramming = xQueueCreate(QUEUEMAXPROGRAMMING, sizeof(_sProgramming));
 	qhIncomingPacket = xQueueCreate(QUEUEMAXINCOMINGPACKETS, sizeof(_sPacket));
 	qhOutgoingPacket = xQueueCreate(QUEUEMAXOUTGOINGPACKETS, sizeof(_sPacketOutgoing));
-	
+
 	//fixme: optimize stack sizes
 	xTaskCreate(ProgramHandler, "Programming handler", configMINIMAL_STACK_SIZE + 1000, (void *)this, tskIDLE_PRIORITY + 10, &thProgramHandler);
-	xTaskCreatePinnedToCore(OutgoingPacketHandler, "Outgoing packet handler", configMINIMAL_STACK_SIZE + 3000, (void *)this, tskIDLE_PRIORITY + 9, &thOutgoingPacketHandler, 1);
-	
+	xTaskCreate(OutgoingPacketHandler, "Outgoing packet handler", configMINIMAL_STACK_SIZE + 3000, (void *)this, tskIDLE_PRIORITY + 9, &thOutgoingPacketHandler);
+
 	sphProgrammingInProgress = xSemaphoreCreateBinary();
 	xSemaphoreGive(sphProgrammingInProgress);
 
@@ -223,7 +224,7 @@ Radio::Radio()
 Radio::~Radio()
 {
 	timerEnd(hwtOutgoing);
-	
+
 	vSemaphoreDelete(sphProgrammingInProgress);
 
 	vTaskDelete(thProgramHandler);
@@ -429,7 +430,7 @@ byte Radio::ProgramRead(byte bAddress)
 
 void Radio::Initialize()
 {
-	pinMode(PIN_OP, OUTPUT);
+//	pinMode(PIN_OP, OUTPUT);
 
 #ifdef CC1000
 	pinMode(PIN_PALE, OUTPUT);
@@ -502,12 +503,12 @@ void Radio::Initialize()
 	while(digitalRead(PIN_MISO))
 		delay(1);
 	digitalWrite(PIN_CS, HIGH);
-	SPI.endTransaction(); 
+	SPI.endTransaction();
 	//end master reset
 
 //	ProgramWrite(CC1101_IOCFG2, 0x0B);
 	ProgramWrite(CC1101_IOCFG1, 0x0B);
-	ProgramWrite(CC1101_IOCFG0, 0x0C); 
+	ProgramWrite(CC1101_IOCFG0, 0x0C);
 //	ProgramWrite(CC1101_FIFOTHR, 0x00);
 //	ProgramWrite(CC1101_SYNC1, 0x00);
 //	ProgramWrite(CC1101_SYNC0, 0x00);
@@ -526,7 +527,7 @@ void Radio::Initialize()
 	ProgramWrite(CC1101_MDMCFG2, 0x00);
 	ProgramWrite(CC1101_MDMCFG1, 0x22);
 	ProgramWrite(CC1101_MDMCFG0, 0xF8);
-	ProgramWrite(CC1101_DEVIATN, 0x42);
+	ProgramWrite(CC1101_DEVIATN, 0x43);
 //	ProgramWrite(CC1101_MCSM2, 0x00);
 //	ProgramWrite(CC1101_MCSM1, 0x00);
 	ProgramWrite(CC1101_MCSM0, 0x18); //0x18 = automatic calibration?!
@@ -556,15 +557,10 @@ void Radio::Initialize()
 	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
 #endif
 
-
-//	pinMode(PIN_G0, OUTPUT); //Set data pin mode to output
-//	attachInterrupt(digitalPinToInterrupt(PIN_MISO), ISRCalibration, RISING); //Set special calibration interript handler
-//	rRadio->ProgramStrobe(CC1101_STX, false);
-
-
 	eRadioState = RS_IDLE;
 }
 
+#ifdef CC1000
 void Radio::Calibrate()
 {//fixme: this should calibrate the cc1101 too so it doesn't have such a large delay switching from rx/tx
 	if (eRadioState != RS_IDLE &&
@@ -607,6 +603,7 @@ void Radio::Calibrate()
 
 	eRadioState = RS_IDLE;
 }
+#endif
 
 void Radio::OutgoingPacketHandler(void *r)
 {
@@ -647,12 +644,12 @@ void Radio::OutgoingPacketHandler(void *r)
 			{//window imminent.
 				if (rRadio->eRadioState != RS_IDLE)
 					rRadio->Stop();
-					
+
 				while (esp_timer_get_time() < pog[0].p.tTime - 1)
 					ets_delay_us(0);
-	
+
 				rRadio->eRadioState = RS_TX;
-	
+
 				rRadio->iBitPos = 7;
 				rRadio->iBytePos = 0;
 				rRadio->iPreambleTimeout = pog[0].iPreambleBytes;
@@ -660,11 +657,11 @@ void Radio::OutgoingPacketHandler(void *r)
 				rRadio->eOutputState = OS_START_PADDING_BYTE;
 				rRadio->thSenderBlocking = xTaskGetCurrentTaskHandle();
 				memcpy(rRadio->bWorkingBytes, pog[0].p.bMessage, pog[0].p.bSize);
-	
+
 #ifdef CC1000
 				pinMode(PIN_DDATA, OUTPUT);
-				attachInterrupt(digitalPinToInterrupt(PIN_DCLOCK), ISRDataOut, RISING); //Data is clocked into CC1000 at the rising edge of DCLK so we set the bit on the falling edge. 
-			
+				attachInterrupt(digitalPinToInterrupt(PIN_DCLOCK), ISRDataOut, RISING); //Data is clocked into CC1000 at the rising edge of DCLK so we set the bit on the falling edge.
+
 				//rRadio->ProgramWrite(0b00010111, 0b00000000, false); //PAPow 00000000
 				rRadio->ProgramWrite(0b00000001, 0b11110001, false); //Freq:B Power State:(RX_PD:1 TX_PD:1 FS_PD:0 Core_PD:0 Bias_PD:0)
 				rRadio->ProgramWrite(0b00011001, 0b00110000, false); //Referance Divider: 6
@@ -674,8 +671,8 @@ void Radio::OutgoingPacketHandler(void *r)
 #endif
 #ifdef CC1101
 				pinMode(PIN_G0, OUTPUT);
-				attachInterrupt(digitalPinToInterrupt(PIN_MISO), ISRDataOut, RISING); //Data is clocked into CC1000 at the rising edge of DCLK so we set the bit on the falling edge. 
-			
+				attachInterrupt(digitalPinToInterrupt(PIN_MISO), ISRDataOut, RISING); //Data is clocked into CC1000 at the rising edge of DCLK so we set the bit on the falling edge.
+
 				rRadio->ProgramStrobe(CC1101_STX, false);
 #endif
 
@@ -690,10 +687,10 @@ void Radio::OutgoingPacketHandler(void *r)
 			{
 				if (pog[0].cbCallback)
 					pog[0].cbCallback(pog[0].vArg, &pog[0].p, bSent);
-	
+
 				if (pog[0].p.bMessage)
 					free(pog[0].p.bMessage);
-					
+
 				for (int i = 0; i < QUEUEMAXOUTGOINGPACKETS; i++)
 					pog[i] = pog[i + 1];
 			}
@@ -723,14 +720,14 @@ void Radio::OutgoingPacketHandler(void *r)
 			}
 
 			i++;
-			
+
 			if (pog[i + 1].p.tTime == 0 && bSwapped == true)
 			{
 				i = 0;
 				bSwapped = false;
 			}
 		}
-		
+
 		//setup timer
 		if (pog[0].p.tTime > 0)
 		{
@@ -743,7 +740,7 @@ void Radio::OutgoingPacketHandler(void *r)
 			else
 			{
 //				print(LL_DEBUG, "Setting delay to %dμs. pog[0].p.tTime = %d gettime() = %d\n", (uint32_t)tDelay, (uint32_t)esp_timer_get_time(), (uint32_t)esp_timer_get_time());
-				
+
 				timerWrite(rRadio->hwtOutgoing, 0);
 				timerAlarmWrite(rRadio->hwtOutgoing, tDelay, false);
 				timerAlarmEnable(rRadio->hwtOutgoing);
@@ -821,11 +818,11 @@ void Radio::Send(byte *bData, int iLength, uint64_t tSendAt, int iPreambleBytes,
 
 		if (iLength > MN_MAXPACKETSIZE)
 			iLength = MN_MAXPACKETSIZE;
-			
+
 		pog.p.bSize = iLength;
 		pog.p.tTime = tSendAt;
 		pog.p.bMessage = (byte *)malloc(iLength * sizeof(byte));
-		memcpy(pog.p.bMessage, bData, iLength);	
+		memcpy(pog.p.bMessage, bData, iLength);
 
 		pog.iPreambleBytes = iPreambleBytes + 1; //fixme why the +1? needed???
 		pog.cbCallback = cbCallback;

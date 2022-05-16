@@ -9,18 +9,29 @@ struct sPrintMessage
 };
 
 QueueHandle_t qPrintBuffer = xQueueCreate(PRINTBUFFERSIZE, sizeof(sPrintMessage));
+
 _eLogLevel eLogLevel = LL_NONE;
 
 void PrintInitialize()
 {
-	xTaskCreatePinnedToCore(tfPrint, "printer", configMINIMAL_STACK_SIZE , NULL, tskIDLE_PRIORITY, &tPrinter, 0);	
+	xTaskCreate(tfPrint, "printer", configMINIMAL_STACK_SIZE , NULL, tskIDLE_PRIORITY, &tPrinter);
 }
 
-void print(_eLogLevel ell, bool bTS, char *format, va_list args)
+void print(_eLogLevel ell, bool bTS, const char *format, va_list args)
 {
 	char cTimestamp[20];
 	char cLocalBuffer[PRINTMESSAGESIZE];
 	int iTSSize = 0;
+
+static const char *_cLogLevel[] =
+{
+	"   ",
+	"ERR",
+	"WAR",
+	"INF",
+	"DBG",
+	"VRB"
+};
 
 	if (bTS)
 	{
@@ -30,8 +41,9 @@ void print(_eLogLevel ell, bool bTS, char *format, va_list args)
 		iTSSize = snprintf(cTimestamp, 20, "%4.4d.%6.6d:%.3s ", iSeconds, iUSeconds, _cLogLevel[ell]);
 		strncpy(cLocalBuffer, cTimestamp, 16);
 	}
-	
+
 	int iMessageSize = vsnprintf(cLocalBuffer + iTSSize, PRINTMESSAGESIZE - iTSSize, format, args);
+
 
 	sPrintMessage sPM;
 	sPM.iSize = iMessageSize + iTSSize;
@@ -50,25 +62,25 @@ void fastprint(_eLogLevel ell, const char *c, int size)
 	memcpy(sPM.cMessage, c, size);
 
 	if (xQueueSendToBackFromISR(qPrintBuffer, (const void *)&sPM, NULL) != pdPASS)
-		free(sPM.cMessage);	
+		free(sPM.cMessage);
 }
 
-void print(_eLogLevel ell, char *format, ...)
+void print(_eLogLevel ell, const char *format, ...)
 {
 	if (ell > eLogLevel)
 	return;
-	
+
 	va_list args;
 	va_start(args, format);
 	print(ell, true, format, args);
 	va_end(args);
 }
 
-void printnts(_eLogLevel ell, char *format, ...)
+void printnts(_eLogLevel ell, const char *format, ...)
 {
 	if (ell > eLogLevel)
 	return;
-		
+
 	va_list args;
 	va_start(args, format);
 	print(ell, false, format, args);
@@ -90,7 +102,7 @@ void tfPrint(void *p)
 				taskYIELD();
 			}
 			Serial.write((char *)sPM.cMessage + i, sPM.iSize - i);
-			
+
 			free(sPM.cMessage);
 		}
 	}
@@ -98,5 +110,5 @@ void tfPrint(void *p)
 
 void SetLogLevel(_eLogLevel ell)
 {
-	eLogLevel = ell;	
+	eLogLevel = ell;
 }

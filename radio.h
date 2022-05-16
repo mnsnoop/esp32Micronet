@@ -3,8 +3,40 @@
 
 #include <SPI.h>
 #include "printbuffer.h"
-#include "settings.h"
-	
+
+// Select EU (868MHz) or not-EU (915MHz) Micronet frequency
+// 0 -> EU, UK (868Mhz)
+// 1 -> non-EU (915Mhz)
+#define FREQUENCY_SYSTEM 0
+
+#if (FREQUENCY_SYSTEM == 0)
+//EU (this is most likely wrong. Someone please update with correct value)
+#define CC1101_FREQWORD2	0x21
+#define CC1101_FREQWORD1	0x75
+#define CC1101_FREQWORD0	0x34
+#endif
+#if (FREQUENCY_SYSTEM == 1)
+#define CC1101_FREQWORD2	0x23
+#define CC1101_FREQWORD1	0x3A
+#define CC1101_FREQWORD0	0x4C
+#endif
+
+#define CC1101_POWER		CC1101_PATABLE_P10
+//See below for values. I found that a good CC1101 can easily overpower its output stage so you'll need to turn down the power.
+//If your device is really close you might need N20.
+//You can find your own sweet spot by going to setup->health->type 8 on a display and playing with the setting. You'll have to exit
+//and reenter the health menu on the display each time you restart the esp32 to trigger the node info packet send.
+
+//Set your Network ID here. Device Id can be whatever you want.
+#define MN_NETWORK_ID0	0x01
+#define MN_NETWORK_ID1	0x0A
+#define MN_NETWORK_ID2	0xC0
+#define MN_NETWORK_ID3	0x12
+#define MN_DEVICE_ID0	0x01
+#define MN_DEVICE_ID1	0x02
+#define MN_DEVICE_ID2	0x03
+#define MN_DEVICE_ID3	0x04
+
 #define QUEUEMAXPROGRAMMING 	100	//queue size for programming commands.
 #define QUEUEMAXINCOMINGPACKETS 20	//queue size for incoming packets.
 #define QUEUEMAXOUTGOINGPACKETS 20	//queue size for outgoing packets.
@@ -115,38 +147,37 @@
 #define CC1101_TXFIFO       0x3F
 #define CC1101_RXFIFO       0x3F
 
-//CC1101 PATABLE VALUES
-#ifdef NA
-	#define CC1101_PATABLE_N30	0x03
-	#define CC1101_PATABLE_N20	0x0E
-	#define CC1101_PATABLE_N15	0x1E
-	#define CC1101_PATABLE_N10	0x27
-	#define CC1101_PATABLE_N6	0x38
-	#define CC1101_PATABLE_0	0x8E
-	#define CC1101_PATABLE_P5	0x84
-	#define CC1101_PATABLE_P7	0xCC
-	#define CC1101_PATABLE_P10	0xC3
-	#define CC1101_PATABLE_P11	0xC0
+#if (FREQUENCY_SYSTEM == 0)
+//CC1101 PATABLE VALUES - 868MHz
+#define CC1101_PATABLE_N30  0x03
+#define CC1101_PATABLE_N20  0x17
+#define CC1101_PATABLE_N15  0x1D
+#define CC1101_PATABLE_N10  0x26
+#define CC1101_PATABLE_N6 0x37
+#define CC1101_PATABLE_0  0x50
+#define CC1101_PATABLE_P5 0x86
+#define CC1101_PATABLE_P7 0xCD
+#define CC1101_PATABLE_P10  0xC5
+#define CC1101_PATABLE_P12  0xC0
+#else
+//CC1101 PATABLE VALUES - 915MHz
+#define CC1101_PATABLE_N30  0x03
+#define CC1101_PATABLE_N20  0x0E
+#define CC1101_PATABLE_N15  0x1E
+#define CC1101_PATABLE_N10  0x27
+#define CC1101_PATABLE_N6 0x38
+#define CC1101_PATABLE_0  0x8E
+#define CC1101_PATABLE_P5 0x84
+#define CC1101_PATABLE_P7 0xCC
+#define CC1101_PATABLE_P10  0xC3
+#define CC1101_PATABLE_P11  0xC0
 #endif
-#ifdef EU
-	#define CC1101_PATABLE_N30	0x03
-	#define CC1101_PATABLE_N20	0x17
-	#define CC1101_PATABLE_N15	0x1D
-	#define CC1101_PATABLE_N10	0x26
-	#define CC1101_PATABLE_N6	0x37
-	#define CC1101_PATABLE_0	0x50
-	#define CC1101_PATABLE_P5	0x86
-	#define CC1101_PATABLE_P7	0xCD
-	#define CC1101_PATABLE_P10	0xC5
-	#define CC1101_PATABLE_P11	0xC0
-#endif
-
 
 #ifdef CC1000
-	#define PIN_IO PIN_DDATA
+#define PIN_IO PIN_DDATA
 #endif
 #ifdef CC1101
-	#define PIN_IO PIN_G0
+#define PIN_IO PIN_G0
 #endif
 
 enum _eRadioState
@@ -219,7 +250,7 @@ struct _sPacketOutgoing
 	_sPacket p;
 	int iPreambleBytes;
 	void (*cbCallback)(void *v, _sPacket *p, bool bSent);
-	void *vArg;	
+	void *vArg;
 };
 
 void IRAM_ATTR ISRDataOut();
@@ -231,28 +262,28 @@ class Radio
 	private:
 	_eInputState eInputState;
 	_eOutputState eOutputState;
-	
+
 	TaskHandle_t thProgramHandler,
 				 thOutgoingPacketHandler;
-	
+
 	QueueHandle_t qhProgramming,
 				  qhIncomingPacket,
 				  qhOutgoingPacket;
-	
+
 	SemaphoreHandle_t sphProgrammingInProgress;
 
 	hw_timer_t *hwtOutgoing;
-	
+
 #ifdef CC1101
 	SPIClass SPI;
 	SPISettings spiSettings = SPISettings(2000000, MSBFIRST, SPI_MODE0);
 #endif
-	
+
 	bool bCalFlipFlop;
 
 	_eRadioState eRadioState;
 	uint64_t tSent;
-	
+
 	byte bWorkingBytes[MN_MAXPACKETSIZE];	//incoming/outgoing packet buffer.
 	int iBitPos;							//incoming/outgoing bit postion pointer
 	int iBytePos;							//incoming/outgoing byte position pointer
@@ -263,7 +294,7 @@ class Radio
 
 	static void OutgoingPacketHandler(void *r); //realtime handling of outgoing packets.
 	friend void OutgoingTimerCallback();
-	
+
 	public:
 	Radio();
 	~Radio();
@@ -287,9 +318,9 @@ class Radio
 		ProgramStrobe(bStrobe, false);
 	}
 	byte ProgramRead(byte bAddress);
-	
+
 	void Calibrate();
-	
+
 	void Stop();
 	void Listen();
 	void Send(byte *bData, int iLength, uint64_t tSendAt, int iPreambleBytes, void (*cbCallback)(void *v, _sPacket *p, bool bSent), void *vArg);
@@ -298,12 +329,12 @@ class Radio
 	{
 		return &qhIncomingPacket;
 	}
-	
+
 	QueueHandle_t *GetOutgoingQueue()
 	{
 		return &qhOutgoingPacket;
 	}
-	
+
 	TaskHandle_t GetProgramTaskHandle()
 	{
 		return thProgramHandler;
@@ -313,12 +344,12 @@ class Radio
 	{
 		return thOutgoingPacketHandler;
 	}
-		
+
 	_eRadioState RadioState()
 	{
 		return eRadioState;
 	}
-	
+
 	static void ProgramHandler(void *);
 	friend void IRAM_ATTR ISRDataOut();
 	friend void IRAM_ATTR ISRDataIn();
