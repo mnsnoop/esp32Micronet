@@ -6,7 +6,7 @@
 #include "anemometer.h" //Hardwired raymarine wind transducer
 #include "paddlewheel.h" //Speed transducer
 
-void( *resetFunc) (void) = 0;
+void (*resetFunc) (void) = 0;
 
 void setup() 
 {
