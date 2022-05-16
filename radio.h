@@ -3,50 +3,7 @@
 
 #include <SPI.h>
 #include "printbuffer.h"
-
-//#define CC1000
-#define CC1101
-
-//CC1000 Settings
-#define PIN_PALE	16
-#define PIN_PDATA	17
-#define PIN_PCLOCK	5
-#define PIN_DCLOCK	18
-#define PIN_DDATA	19
-#define PIN_OP		21
-
-//CC1101 Settings
-#define PIN_MISO	19
-#define PIN_MOSI	18
-#define PIN_SCLK	5
-#define PIN_CS		17
-#define PIN_G0		16
-
-//NA 915Mhz
-#define CC1101_FREQWORD2	0x23
-#define CC1101_FREQWORD1	0x3A
-#define CC1101_FREQWORD0	0x4C
-
-//EU 869 Mhz (this is most likely wrong. Someone please update with correct value)
-//#define CC1101_FREQWORD2	0x21
-//#define CC1101_FREQWORD1	0x75
-//#define CC1101_FREQWORD0	0x32
-
-#define CC1101_POWER		CC1101_PATABLE_P7
-//See below for values. I found that a good CC1101 can easily overpower its output stage so you'll need to turn down the power.
-//If your device is really close you might need N20.
-//You can find your own sweet spot by going to setup->health->type 8 on a display and playing with the setting. You'll have to exit
-//and reenter the health menu on the display each time you restart the esp32 to trigger the node info packet send.
-
-//Set your Network ID here. Device Id can be whatever you want.
-#define MN_NETWORK_ID0	0x01
-#define MN_NETWORK_ID1	0x01
-#define MN_NETWORK_ID2	0x01
-#define MN_NETWORK_ID3	0x01
-#define MN_DEVICE_ID0	0x01
-#define MN_DEVICE_ID1	0x01
-#define MN_DEVICE_ID2	0x01
-#define MN_DEVICE_ID3	0x01
+#include "settings.h"
 	
 #define QUEUEMAXPROGRAMMING 	100	//queue size for programming commands.
 #define QUEUEMAXINCOMINGPACKETS 20	//queue size for incoming packets.
@@ -159,22 +116,37 @@
 #define CC1101_RXFIFO       0x3F
 
 //CC1101 PATABLE VALUES
-#define CC1101_PATABLE_N30	0x03
-#define CC1101_PATABLE_N20	0x0E
-#define CC1101_PATABLE_N15	0x1E
-#define CC1101_PATABLE_N10	0x27
-#define CC1101_PATABLE_N6	0x38
-#define CC1101_PATABLE_0	0x8E
-#define CC1101_PATABLE_P5	0x84
-#define CC1101_PATABLE_P7	0xCC
-#define CC1101_PATABLE_P10	0xC3
-#define CC1101_PATABLE_P11	0xC0
+#ifdef NA
+	#define CC1101_PATABLE_N30	0x03
+	#define CC1101_PATABLE_N20	0x0E
+	#define CC1101_PATABLE_N15	0x1E
+	#define CC1101_PATABLE_N10	0x27
+	#define CC1101_PATABLE_N6	0x38
+	#define CC1101_PATABLE_0	0x8E
+	#define CC1101_PATABLE_P5	0x84
+	#define CC1101_PATABLE_P7	0xCC
+	#define CC1101_PATABLE_P10	0xC3
+	#define CC1101_PATABLE_P11	0xC0
+#endif
+#ifdef EU
+	#define CC1101_PATABLE_N30	0x03
+	#define CC1101_PATABLE_N20	0x17
+	#define CC1101_PATABLE_N15	0x1D
+	#define CC1101_PATABLE_N10	0x26
+	#define CC1101_PATABLE_N6	0x37
+	#define CC1101_PATABLE_0	0x50
+	#define CC1101_PATABLE_P5	0x86
+	#define CC1101_PATABLE_P7	0xCD
+	#define CC1101_PATABLE_P10	0xC5
+	#define CC1101_PATABLE_P11	0xC0
+#endif
+
 
 #ifdef CC1000
-#define PIN_IO PIN_DDATA
+	#define PIN_IO PIN_DDATA
 #endif
 #ifdef CC1101
-#define PIN_IO PIN_G0
+	#define PIN_IO PIN_G0
 #endif
 
 enum _eRadioState
