@@ -17,6 +17,7 @@ Micronet::Micronet()
 
 	eMNStatus = MNS_Force_Node;
 //	eMNStatus = MNS_NetworkChoice;
+//	eMNStatus = MNS_TestMode1;
 
 	for (int i = 0; i < 10; i++)
 	{
@@ -172,6 +173,7 @@ void Micronet::IncomingPacketHandler(_sPacket *p)
 			{
 				if (!random(0, 6))
 				{ //try to join the network. the random chance mimics MN devices' own anti-collision mechinism.
+					print(LL_INFO, "Trying to connect to the Micronet as a node.\n");
 					_uMNPacket pPacket;
 					CreatePacket0x03(&pPacket);
 					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x03));				
@@ -407,7 +409,7 @@ void Micronet::MicronetWorker()
 	uint32_t iCurrentSecond = iCurrentTick / 1000000;
 	uint32_t iCurrentUS = iCurrentTick - (uint64_t)(iCurrentSecond * 1000000); //0 - 999,999
 	int iWorkerTickTime = iSyncPacketOffset + 500000; //we tick 500ms before/after sync packet.
-	if (iWorkerTickTime > 1000000)
+	if (iWorkerTickTime >= 1000000)
 		iWorkerTickTime -= 1000000;
 		
 	if (abs((int)(iCurrentUS - iWorkerTickTime)) < 50000)
@@ -416,9 +418,8 @@ void Micronet::MicronetWorker()
 		{
 			case MNS_TestMode1: //special test mode
 			{
-				print(LL_INFO, "Test mode 1.\n");
+				print(LL_INFO, "Test mode 1: Tx inf. preamble for signal testing.\n");
 
-				eMNStatus = MNS_TestMode2;
 			}
 			break;
 			case MNS_TestMode2: //special test mode
@@ -610,6 +611,7 @@ void Micronet::Send(_uMNPacket pPacket, uint64_t tSendTime, int iPreambleLength)
 		return;
 	}
 
+	print(LL_DEBUG, "Scheduling to send 0x%x packet at %d.\n", pPacket.sHeader.bPacketType, (uint32_t)tSendTime);
 	CCRadio.Send(pPacket.bRaw, pPacket.sHeader.bLength + 2, tSendTime, iPreambleLength, &SentPacketCallback, (void *)this);
 }
 
@@ -1017,6 +1019,19 @@ void Micronet::CreatePacket0x02(_uMNPacket *p)
 
 		iLength += 8;
 	}
+
+/*		p->sHeader.bData[iLength + 0] = 0x06;
+		p->sHeader.bData[iLength + 1] = 0xFD;
+		p->sHeader.bData[iLength + 2] = 0x00; //unk
+		p->sHeader.bData[iLength + 3] = 0x01; //minutes
+		p->sHeader.bData[iLength + 4] = 0x00; //seconds
+		p->sHeader.bData[iLength + 5] = 0x00;
+		p->sHeader.bData[iLength + 6] = 0x00; //0x00 = stop, 0x01 = run
+		p->sHeader.bData[iLength + 7] = GetCRC(p->sHeader.bData + iLength, 7); //0x64;
+
+		iLength += 8;
+*/
+
 
 	p->sHeader.mnIdNetwork = mnIdMyNetwork;
 	p->sHeader.mnIdDevice = mnIdMyDevice;

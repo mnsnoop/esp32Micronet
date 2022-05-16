@@ -29,6 +29,8 @@ class Anemometer
 	RunningAverage *raAvg5V;
 	RunningAverage *raAvgWindSpeed;
 	runningAngle *raAvgWindAngle;
+
+	bool bFirstRep = true;
 	
 public:
 	Anemometer();

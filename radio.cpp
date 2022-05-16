@@ -20,12 +20,12 @@ void IRAM_ATTR ISRCalibration()
 {//This creates an even data signal (0x55 0b01010101) for calibrating.
 	if (rRadio->bCalFlipFlop)
 	{
-		digitalWrite(PIN_IO, 0);
+		digitalWrite(PIN_IO, 1);
 		rRadio->bCalFlipFlop = false;
 	}
 	else
 	{
-		digitalWrite(PIN_IO, 1);
+		digitalWrite(PIN_IO, 0);
 		rRadio->bCalFlipFlop = true;
 	}
 }
@@ -209,7 +209,7 @@ Radio::Radio()
 	
 	//fixme: optimize stack sizes
 	xTaskCreate(ProgramHandler, "Programming handler", configMINIMAL_STACK_SIZE + 1000, (void *)this, tskIDLE_PRIORITY + 10, &thProgramHandler);
-	xTaskCreate(OutgoingPacketHandler, "Outgoing packet handler", configMINIMAL_STACK_SIZE + 3000, (void *)this, tskIDLE_PRIORITY + 9, &thOutgoingPacketHandler);
+	xTaskCreatePinnedToCore(OutgoingPacketHandler, "Outgoing packet handler", configMINIMAL_STACK_SIZE + 3000, (void *)this, tskIDLE_PRIORITY + 9, &thOutgoingPacketHandler, 1);
 	
 	sphProgrammingInProgress = xSemaphoreCreateBinary();
 	xSemaphoreGive(sphProgrammingInProgress);
@@ -554,7 +554,20 @@ void Radio::Initialize()
 	ProgramWrite(CC1101_TEST0, 0x09);
 
 	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
+	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
+	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
+	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
+	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
+	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
+	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
+	ProgramWrite(CC1101_PATABLE, CC1101_POWER);
 #endif
+
+
+//	pinMode(PIN_G0, OUTPUT); //Set data pin mode to output
+//	attachInterrupt(digitalPinToInterrupt(PIN_MISO), ISRCalibration, RISING); //Set special calibration interript handler
+//	rRadio->ProgramStrobe(CC1101_STX, false);
+
 
 	eRadioState = RS_IDLE;
 }

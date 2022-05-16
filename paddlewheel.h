@@ -9,11 +9,13 @@
 #define WaterSpeedIO 33
 
 #define WaterSpeedDebounceMS 10
-#define WaterSpeedAvgSamples 5 //Number of running average sample size. Larger is more smoothing.
+#define WaterSpeedAvgSamples 10 //Number of running average sample size. Larger is more smoothing.
 
 class Paddlewheel
 {
 	RunningAverage *raAvgWaterSpeed;
+
+	bool bFirstRep = true;
 	
 public:
 	Paddlewheel();

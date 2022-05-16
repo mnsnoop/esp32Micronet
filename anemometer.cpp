@@ -15,9 +15,8 @@ void IRAM_ATTR SpeedInt()
 {
 	unsigned long ulTime = millis();
 	bool bSpeed = digitalRead(SpeedIO);
-	
-	if (abs(ulTime - ulWindSpeedDebounce) > WindSpeedDebounceMS &&
-		bWindSpeedDebounce != bSpeed)
+
+	if (bWindSpeedDebounce != bSpeed)
 	{
 		portENTER_CRITICAL_ISR(&mxWindTimer);
 		iWindCount++;
@@ -31,20 +30,22 @@ void IRAM_ATTR SpeedInt()
 void IRAM_ATTR cbSpeedTimer(void *v)
 {
 	portENTER_CRITICAL_ISR(&mxWindTimer);
-	fWindSpeed = iWindCount * (double)0.08; //using doubles because esp32's can't do floating point in interupts.
+	fWindSpeed = iWindCount * (double)0.05; //using doubles because esp32's can't do floating point in interupts.
 	iWindCount = 0;
 	portEXIT_CRITICAL_ISR(&mxWindTimer);
 }
 
 void tfAnemometer(void *p)
 {
+	delay(2600);
+
 	for (;;)
 	{
-		int iRaw12VPower = ADC_LUT[analogRead(Power12V)],
-			iRaw8VPower = ADC_LUT[analogRead(Power8V)],
-			iRaw5VPower = ADC_LUT[analogRead(Power5V)],
-			iRawSine = ADC_LUT[analogRead(SineADC)],
-			iRawCosine = ADC_LUT[analogRead(CosineADC)];
+		int iRaw12VPower = ADC_LUT[analogRead(Power12V)];
+		int iRaw8VPower = ADC_LUT[analogRead(Power8V)];
+		int iRaw5VPower = ADC_LUT[analogRead(Power5V)];
+		int iRawSine = ADC_LUT[analogRead(SineADC)];
+		int iRawCosine = ADC_LUT[analogRead(CosineADC)];
 
 		float 	fPower12Volts = iRaw12VPower / 223.0f,
 				fPower8Volts = iRaw8VPower / 471.0f,
@@ -54,30 +55,49 @@ void tfAnemometer(void *p)
 				fWindAngle = atan2(fSineVolts - (fPower8Volts / 2.0f), fCosineVolts - (fPower8Volts / 2.0f));
 
 		portENTER_CRITICAL_ISR(&mxWindTimer);
-		
+
 		float fAvgWindAngle = Ameter.raAvgWindAngle->add(fWindAngle);
 		Ameter.raAvg12V->add(fPower12Volts);
 		Ameter.raAvg8V->add(fPower8Volts);
 		Ameter.raAvg5V->add(fPower5Volts);
 		Ameter.raAvgWindSpeed->add(fWindSpeed);
 
+		if (Ameter.bFirstRep)
+		{
+			for (int i = 0; i < 50; i++)
+			{
+				fAvgWindAngle = Ameter.raAvgWindAngle->add(fWindAngle);
+				Ameter.raAvg12V->add(fPower12Volts);
+				Ameter.raAvg8V->add(fPower8Volts);
+				Ameter.raAvg5V->add(fPower5Volts);
+				Ameter.raAvgWindSpeed->add(fWindSpeed);
+			}
+
+			Ameter.bFirstRep = false;
+		}
+
 		float fAvgWindSpeed = Ameter.raAvgWindSpeed->getAverage(),
 				fAvg12Volts = Ameter.raAvg12V->getAverage(),
 				fAvg8Volts = Ameter.raAvg8V->getAverage(),
 				fAvg5Volts = Ameter.raAvg5V->getAverage();
-				
+
+
 		portEXIT_CRITICAL(&mxWindTimer);
 
 		float fAvgWindAngleDegree = (fAvgWindAngle > 0 ? fAvgWindAngle : (2.0f * M_PI + fAvgWindAngle)) * 360.0f / (2.0f * M_PI);
 		float fAvgWindAngleDegreePN180 = fAvgWindAngle * 360.0f / (2 * M_PI);
 		
-		mNet.SetApparentWindDirection(fAvgWindAngleDegreePN180);
-		mNet.SetApparentWindSpeed(fAvgWindSpeed * 1.943844f);
 		mNet.SetVolts(fAvg12Volts);
-		
-		N2kBridge.SendAppWindAngleSpeed(fAvgWindAngleDegree * (M_PI / 180.0f), fAvgWindSpeed);
 		N2kBridge.SendBatteryVoltage(fAvg12Volts);
-		
+
+		if (fSineVolts > 0.01f || fCosineVolts > 0.01f || fAvgWindSpeed > 0.01f)
+		{
+			mNet.SetApparentWindDirection(fAvgWindAngleDegreePN180);
+			mNet.SetApparentWindSpeed(fAvgWindSpeed * 1.943844f);
+			
+			N2kBridge.SendAppWindAngleSpeed(fAvgWindAngleDegree * (M_PI / 180.0f), fAvgWindSpeed);
+		}
+
 	    //1 mps = 2.2369362920544 mph
 		float fWindSpeedMPH = fAvgWindSpeed * 2.2369362920544;
 		
@@ -110,7 +130,7 @@ void tfAnemometer(void *p)
 
 		print(LL_DEBUG, "Speed: %.2fMph %s %.2f° (%.2f°) (db 12v: %.2fv 8v: %.2fv 5v: %.2fv sine: %.2fv cosine: %.2fv angle: %.2f avg angle %.2f)\n", fWindSpeedMPH, &cDir[0], fAvgWindAngleDegree, fAvgWindAngleDegreePN180, fPower12Volts, fPower8Volts, fPower5Volts, fSineVolts, fCosineVolts, fWindAngle, fAvgWindAngle);
 	
-		delay(500);
+		delay(1000);
 	}	
 }
 
@@ -153,11 +173,13 @@ void Anemometer::Start()
 	raAvgWindAngle = new runningAngle(runningAngle::RADIANS);
 	raAvgWindAngle->setWeight(WindAngleSmoothing);
 
+	bWindSpeedDebounce = true;
+
 	swWindTimer = xTimerCreate("Windvane timer", 2500, pdTRUE, (void *) 0, cbSpeedTimer);
 	xTimerStart(swWindTimer, portMAX_DELAY);
 
 	analogReadResolution(12);
-	attachInterrupt(SpeedIO, SpeedInt, FALLING);
+	attachInterrupt(SpeedIO, SpeedInt, CHANGE);
 
-	xTaskCreate(tfAnemometer, "Anemometer Worker", configMINIMAL_STACK_SIZE + 4000, NULL, tskIDLE_PRIORITY + 1, &tAnemometer);
+	xTaskCreatePinnedToCore(tfAnemometer, "Anemometer Worker", configMINIMAL_STACK_SIZE + 4000, NULL, tskIDLE_PRIORITY + 3, &tAnemometer, 0);
 }

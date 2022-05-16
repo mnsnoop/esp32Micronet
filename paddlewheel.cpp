@@ -23,16 +23,29 @@ void IRAM_ATTR cbWaterSpeedTimer(void *v)
 
 	//4.72 pulses per NM.
 	
-	fWaterSpeed = iWaterSpeedCount * (double)0.21186f; //using doubles because esp32's can't do floating point in interupts.
+	fWaterSpeed = iWaterSpeedCount * (double)0.21186f * 4.0f; //using doubles because esp32's can't do floating point in interupts.
 	iWaterSpeedCount = 0;
 
 	Pwheel.raAvgWaterSpeed->add(fWaterSpeed); //this is in knots.
+
+	if (Pwheel.bFirstRep)
+	{
+		for (int i = 0; i < 50; i++)
+			Pwheel.raAvgWaterSpeed->add(fWaterSpeed);
+
+		Pwheel.bFirstRep = false;
+	}
+
+	
 	float fAvgWaterSpeed = Pwheel.raAvgWaterSpeed->getAverage();
 
 	portEXIT_CRITICAL_ISR(&mxWaterSpeedTimer);
-	
-	mNet.SetSpeed(fAvgWaterSpeed);
-	N2kBridge.SendWaterSpeed(fAvgWaterSpeed * 0.514f);
+
+	if (fAvgWaterSpeed > 0.1f)
+	{
+		mNet.SetSpeed(fAvgWaterSpeed);
+		N2kBridge.SendWaterSpeed(fAvgWaterSpeed * 0.514f);
+	}
 
 //	Serial.print("speed ");
 //	Serial.print(fAvgWaterSpeed);

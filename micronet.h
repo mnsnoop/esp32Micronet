@@ -277,6 +277,9 @@ class Micronet
 
 extern Micronet mNet;
 
+float readFloat(unsigned int addr);
+void writeFloat(unsigned int addr, float x);
+
 #endif // _MICRONET_H
 
 
