@@ -9,7 +9,6 @@ struct sPrintMessage
 };
 
 QueueHandle_t qPrintBuffer = xQueueCreate(PRINTBUFFERSIZE, sizeof(sPrintMessage));
-
 _eLogLevel eLogLevel = LL_NONE;
 
 void PrintInitialize()
@@ -33,7 +32,6 @@ void print(_eLogLevel ell, bool bTS, char *format, va_list args)
 	}
 	
 	int iMessageSize = vsnprintf(cLocalBuffer + iTSSize, PRINTMESSAGESIZE - iTSSize, format, args);
-
 
 	sPrintMessage sPM;
 	sPM.iSize = iMessageSize + iTSSize;
