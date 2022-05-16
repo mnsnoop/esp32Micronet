@@ -17,7 +17,6 @@ Micronet::Micronet()
 
 	eMNStatus = MNS_Force_Node;
 //	eMNStatus = MNS_NetworkChoice;
-//	eMNStatus = MNS_TestMode1;
 
 	for (int i = 0; i < 10; i++)
 	{
@@ -416,19 +415,6 @@ void Micronet::MicronetWorker()
 	{
 		switch (eMNStatus)
 		{
-			case MNS_TestMode1: //special test mode
-			{
-				print(LL_INFO, "Test mode 1: Tx inf. preamble for signal testing.\n");
-
-			}
-			break;
-			case MNS_TestMode2: //special test mode
-				print(LL_INFO, "Test mode 2.\n");
-				eMNStatus = MNS_TestMode3;
-			break;
-			case MNS_TestMode3: //special test mode
-				//print(LL_INFO, "Test mode 3.\n");
-			break;
 			case MNS_NetworkChoice: //start listening for a network.
 				CCRadio.Listen();
 				print(LL_INFO, "Network choice mode: Listening for a network.\n");

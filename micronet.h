@@ -5,13 +5,10 @@
 
 enum _eMNStatus //network states. main driver of wat do.
 {
-	MNS_TestMode1,				//Special test mode.
 	MNS_NetworkChoice,			//Network Choice mode. How displays act. Listen to see if a network is running join if found or start one if not.
 	MNS_Force_Node,				//Forced node mode. How hull transmitters act. Wake up to listen for a sync packet once a second. If none is detected go back to sleep. If we detect a network join the network.
 	MNS_Force_Scheduler,		//Forced schedule mode. *fixme not implimented* scan for a network and if one is detected take over scheduler duties next 0x0a/0x0b exchange.
 //above are the start values you can pick.
-	MNS_TestMode2,				//Special test mode.
-	MNS_TestMode3,				//Special test mode.
 	MNS_NetworkChoice_S1,		//Listening for 1 second.
 	MNS_NetworkChoice_S2,		//Listening for another second.
 	MNS_NetworkChoice_M1,		//If no network is found announce ourselves as the scheduler to wake up other nodes and start sending sync packets.
