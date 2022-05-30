@@ -18,6 +18,8 @@
 #include "NmeaDecoder.h"
 #endif
 
+//void (*resetFunc) (void) = 0;
+
 void setup()
 {
 	// Init USB serial link
@@ -27,7 +29,7 @@ void setup()
 
 	PrintInitialize();
 
-	//SetLogLevel(LL_VERBOSE);
+//	SetLogLevel(LL_VERBOSE);
 	SetLogLevel(LL_INFO);
 
 	print(LL_INFO, "Starting ESP32 Micronet.\n");
@@ -58,13 +60,16 @@ void setup()
 		CONSOLE.print(gNavCompass.GetDeviceName().c_str());
 		CONSOLE.println(" Found");
 	}
+#endif
+#endif
 }
-#endif
-#endif
 
 void loop()
 {
-	delay(500);
+//	delay(10 * 60 * 1000);
+//	print(LL_INFO, "Auto restarting after 10 minutes.\n");
+//	delay(100);
+//	resetFunc();
 }
 
 void IRAM_ATTR GNSS_CALLBACK()

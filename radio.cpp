@@ -21,12 +21,12 @@ void IRAM_ATTR ISRCalibration()
 {//This creates an even data signal (0x55 0b01010101) for calibrating.
 	if (rRadio->bCalFlipFlop)
 	{
-		digitalWrite(PIN_IO, 0);
+		digitalWrite(PIN_IO, 1);
 		rRadio->bCalFlipFlop = false;
 	}
 	else
 	{
-		digitalWrite(PIN_IO, 1);
+		digitalWrite(PIN_IO, 0);
 		rRadio->bCalFlipFlop = true;
 	}
 }
@@ -64,7 +64,7 @@ void IRAM_ATTR ISRDataOut()
 
 		rRadio->iBitPos = 7;
 	}
-	b = 0;
+
 	switch (rRadio->eOutputState)
 	{
 		case OS_START_PADDING_BYTE:
@@ -210,8 +210,11 @@ Radio::Radio()
 
 	//fixme: optimize stack sizes
 	xTaskCreate(ProgramHandler, "Programming handler", configMINIMAL_STACK_SIZE + 1000, (void *)this, tskIDLE_PRIORITY + 10, &thProgramHandler);
+#ifdef RADIO_CORE_1
+	xTaskCreatePinnedToCore(OutgoingPacketHandler, "Outgoing packet handler", configMINIMAL_STACK_SIZE + 3000, (void *)this, tskIDLE_PRIORITY + 9, &thOutgoingPacketHandler, 1);
+#else
 	xTaskCreate(OutgoingPacketHandler, "Outgoing packet handler", configMINIMAL_STACK_SIZE + 3000, (void *)this, tskIDLE_PRIORITY + 9, &thOutgoingPacketHandler);
-
+#endif
 	sphProgrammingInProgress = xSemaphoreCreateBinary();
 	xSemaphoreGive(sphProgrammingInProgress);
 
@@ -430,7 +433,6 @@ byte Radio::ProgramRead(byte bAddress)
 
 void Radio::Initialize()
 {
-//	pinMode(PIN_OP, OUTPUT);
 
 #ifdef CC1000
 	pinMode(PIN_PALE, OUTPUT);
@@ -482,7 +484,7 @@ void Radio::Initialize()
 	pinMode(PIN_MOSI, OUTPUT);
 	pinMode(PIN_MISO, INPUT);
 	pinMode(PIN_CS, OUTPUT);
-	pinMode(PIN_G0, INPUT); //tx/rx data
+	pinMode(PIN_GDO0, INPUT); //tx/rx data
 
 	//master reset
 	digitalWrite(PIN_SCLK, HIGH);
@@ -507,9 +509,9 @@ void Radio::Initialize()
 	//end master reset
 
 //	ProgramWrite(CC1101_IOCFG2, 0x0B);
-	ProgramWrite(CC1101_IOCFG1, 0x0B);
-	ProgramWrite(CC1101_IOCFG0, 0x0C);
-//	ProgramWrite(CC1101_FIFOTHR, 0x00);
+	ProgramWrite(CC1101_IOCFG1, 0x0B); // data on gdo1 (mosi)
+	ProgramWrite(CC1101_IOCFG0, 0x0C); // clock on gdo0
+//	ProgramWrite(CC1101_FIFOTHR, 0x00); // 0x47
 //	ProgramWrite(CC1101_SYNC1, 0x00);
 //	ProgramWrite(CC1101_SYNC0, 0x00);
 //	ProgramWrite(CC1101_PKTLEN, 0x00);
@@ -517,22 +519,22 @@ void Radio::Initialize()
 	ProgramWrite(CC1101_PKTCTRL0, 0x12); //Serial data in/out. Inf packet mode.
 //	ProgramWrite(CC1101_ADDR, 0x00);
 //	ProgramWrite(CC1101_CHANNR, 0x00);
-	ProgramWrite(CC1101_FSCTRL1, 0x0B);
+	ProgramWrite(CC1101_FSCTRL1, 0x0B); // IF frequency 0x08 - 203kHz, 0x0B - 279kHz
 	ProgramWrite(CC1101_FSCTRL0, 0x00);
 	ProgramWrite(CC1101_FREQ2, CC1101_FREQWORD2);
 	ProgramWrite(CC1101_FREQ1, CC1101_FREQWORD1);
 	ProgramWrite(CC1101_FREQ0, CC1101_FREQWORD0);
-	ProgramWrite(CC1101_MDMCFG4, 0x7B);
+	ProgramWrite(CC1101_MDMCFG4, 0x7B); // RX BW: 232 kHz
 	ProgramWrite(CC1101_MDMCFG3, 0x83);
-	ProgramWrite(CC1101_MDMCFG2, 0x00);
+	ProgramWrite(CC1101_MDMCFG2, 0x00); // 0x00 - no sync/preamble
 	ProgramWrite(CC1101_MDMCFG1, 0x22);
 	ProgramWrite(CC1101_MDMCFG0, 0xF8);
-	ProgramWrite(CC1101_DEVIATN, 0x43);
+	ProgramWrite(CC1101_DEVIATN, 0x44);
 //	ProgramWrite(CC1101_MCSM2, 0x00);
 //	ProgramWrite(CC1101_MCSM1, 0x00);
 	ProgramWrite(CC1101_MCSM0, 0x18); //0x18 = automatic calibration?!
-	ProgramWrite(CC1101_FOCCFG, 0x1D);
-	ProgramWrite(CC1101_BSCFG, 0x1C);
+	ProgramWrite(CC1101_FOCCFG, 0x1D); // freq. offset compensation up to BW/8 (25kHz)
+	ProgramWrite(CC1101_BSCFG, 0x1F); // 1C: bit synch. off, 1F: on
 	ProgramWrite(CC1101_AGCCTRL2, 0xC7);
 	ProgramWrite(CC1101_AGCCTRL1, 0x00);
 	ProgramWrite(CC1101_AGCCTRL0, 0xB2);
@@ -670,7 +672,7 @@ void Radio::OutgoingPacketHandler(void *r)
 				rRadio->ProgramWrite(0b00000001, 0b11100001, false); //Freq:B Power State:(RX_PD:1 TX_PD:0 FS_PD:0 Core_PD:0 Bias_PD:0) !!START TX!!
 #endif
 #ifdef CC1101
-				pinMode(PIN_G0, OUTPUT);
+				pinMode(PIN_GDO0, OUTPUT);
 				attachInterrupt(digitalPinToInterrupt(PIN_MISO), ISRDataOut, RISING); //Data is clocked into CC1000 at the rising edge of DCLK so we set the bit on the falling edge.
 
 				rRadio->ProgramStrobe(CC1101_STX, false);
@@ -805,7 +807,7 @@ void Radio::Listen()
 #ifdef CC1101
 	ProgramStrobe(CC1101_SRX, false);
 
-	pinMode(PIN_G0, INPUT);
+	pinMode(PIN_GDO0, INPUT);
 	attachInterrupt(digitalPinToInterrupt(PIN_MISO), ISRDataIn, FALLING); //datasheet says data should be clocked in on the rising edge. Given the ~7us ISR delay I've found falling far more stable.
 #endif
 }

@@ -14,7 +14,7 @@ _eLogLevel eLogLevel = LL_NONE;
 
 void PrintInitialize()
 {
-	xTaskCreate(tfPrint, "printer", configMINIMAL_STACK_SIZE , NULL, tskIDLE_PRIORITY, &tPrinter);
+	xTaskCreatePinnedToCore(tfPrint, "printer", configMINIMAL_STACK_SIZE+500, NULL, tskIDLE_PRIORITY, &tPrinter, 0);	
 }
 
 void print(_eLogLevel ell, bool bTS, const char *format, va_list args)
