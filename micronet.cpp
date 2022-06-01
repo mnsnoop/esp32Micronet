@@ -502,6 +502,16 @@ void Micronet::MicronetWorker()
 					int iNewSize = pPacket.sHeader.bLength;
 					CreatePacket0x05(&pPacket, iNewSize);
 					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x05));
+
+					if (eMNStatus == MNS_NetworkChoice_Scheduler || eMNStatus == MNS_Force_Scheduler_Connected)
+					{ //we're the scheduler so send the 0x05 to notify the network and then increase our window size.
+						int iPlace = FindMNDeviceInSyncList(mnIdMyDevice);
+						if (iPlace != -1)
+						{
+							print(LL_INFO, "Adjusting node %2.2X %2.2X %2.2X %2.2X slot from %x to %x.\n", mnIdMyDevice.bId[0], mnIdMyDevice.bId[1], mnIdMyDevice.bId[2], mnIdMyDevice.bId[3], sMNSync[iPlace].bWindowSize, iNewSize);
+							sMNSync[iPlace].bWindowSize = iNewSize;
+						}
+					}
 				}
 				else
 					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x02));
