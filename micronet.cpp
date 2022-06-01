@@ -430,7 +430,7 @@ void Micronet::MicronetWorker()
 			{
 				print(LL_INFO, "Network choice mode: No network detected, announcing ourselves as the scheduler.\n");
 				sMNSync[0].mnIdDevice = mnIdMyDevice;
-				sMNSync[0].bWindowSize = 0;
+				sMNSync[0].bWindowSize = 8;
 				iMNNodes = 1;
 
 				iSyncPacketOffset = 500000; //set the network sync packets to be sent at 0.5 seconds.
@@ -498,20 +498,22 @@ void Micronet::MicronetWorker()
 				if (sMNSync[iPlace].bWindowSize < pPacket.sHeader.bLength)
 				{ //we have to increase our window before sending this data.
 					print(LL_INFO, "Adjusting our window size from %x to %x.\n", sMNSync[iPlace].bWindowSize, pPacket.sHeader.bLength);
-										
 					int iNewSize = pPacket.sHeader.bLength;
-					CreatePacket0x05(&pPacket, iNewSize);
-					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x05));
 
 					if (eMNStatus == MNS_NetworkChoice_Scheduler || eMNStatus == MNS_Force_Scheduler_Connected)
-					{ //we're the scheduler so send the 0x05 to notify the network and then increase our window size.
-						int iPlace = FindMNDeviceInSyncList(mnIdMyDevice);
+					{ //send the 0x05 to notify the network then increase our window size.
+						iNewSize += 3 + (5 * iMNNodes); //add the guard time between the 0x01 packet and 0x02's.
+						
+						int iPlace = FindMNDeviceInSyncList(mnIdMyDevice); //should always be 0. might need to have two slots... Not sure if the first slot is a valid data slot.
 						if (iPlace != -1)
 						{
 							print(LL_INFO, "Adjusting node %2.2X %2.2X %2.2X %2.2X slot from %x to %x.\n", mnIdMyDevice.bId[0], mnIdMyDevice.bId[1], mnIdMyDevice.bId[2], mnIdMyDevice.bId[3], sMNSync[iPlace].bWindowSize, iNewSize);
 							sMNSync[iPlace].bWindowSize = iNewSize;
 						}
 					}
+					
+					CreatePacket0x05(&pPacket, iNewSize);
+					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x05));
 				}
 				else
 					Send(pPacket, GetNextPacketWindow(mnIdMyDevice, 0x02));
@@ -720,9 +722,10 @@ void Micronet::CreatePacket0x01(_uMNPacket *p)
 	if (!p)
 		return;
 	
-	int iLength = 3 + (5 * iMNNodes);
-	
-	sMNSync[0].bWindowSize = iLength;
+	int iLength = 3 + (5 * iMNNodes);	
+
+	if (sMNSync[0].bWindowSize < iLength) //check to see if our slot is larger than the minimum and fix it if not.
+		sMNSync[0].bWindowSize = iLength;
 
 	for (int i = 0; i < iMNNodes; i++)
 	{
